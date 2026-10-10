@@ -3,6 +3,11 @@
 # 放置位置：WLED 仓库根目录下的 .github/workflows/wled-custom-build.yaml
 # 用法：推送到仓库或手动在 Actions 页点 Run workflow
 # 产出：wled-esp32c3-bfmsp 构件，内含编译好的 .bin 固件
+#
+# 与 WLED 官方 CI（.github/workflows/build.yml）保持一致的要点：
+#   - pip install -r requirements.txt 安装官方 pin 的 PlatformIO 版本
+#   - node 版本取自仓库 .nvmrc；npm ci 安装依赖（html_*.h 已内置，无需 npm run build）
+#   - 固件产物在 build_output/release/*.bin
 # =============================================================================
 name: WLED Build (esp32c3 + bfmsp)
 
@@ -12,38 +17,40 @@ on:
     branches:
       - '**'
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
+          cache: 'npm'
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v7
         with:
-          python-version: '3.11'
+          python-version: '3.12'
+          cache: 'pip'
 
       - name: Install npm dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Build WLED web UI
-        run: npm run build
-
-      - name: Install PlatformIO
-        run: pip install -U platformio
+      - name: Install PlatformIO (pinned by requirements.txt)
+        run: pip install -r requirements.txt
 
       - name: Build firmware (esp32c3dev_bfmsp)
         run: pio run -e esp32c3dev_bfmsp
 
       - name: Upload firmware artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wled-esp32c3-bfmsp
-          path: build_output/firmware/
+          path: build_output/release/*.bin
           if-no-files-found: error
