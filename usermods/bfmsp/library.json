@@ -1,0 +1,6 @@
+{
+  "name": "bfmsp",
+  "version": "1.0.0",
+  "description": "Betaflight MSP to WLED bridge usermod (armed/mode/battery -> preset switching)",
+  "build": { "libArchive": false }
+}
