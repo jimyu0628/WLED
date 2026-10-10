@@ -41,6 +41,7 @@ class BfMspUsermod : public Usermod {
     void parseSerial();
     void sendRequest(uint8_t cmd);
     void onMspFrame(uint8_t cmd, uint8_t* payload, uint8_t len);
+    void pollFc();
     void applyState();
     void applySwitch();
     void applyPreset(uint16_t presetId);
