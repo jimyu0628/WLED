@@ -4,7 +4,8 @@
 //
 // 功能：ESP32 通过 UART 与飞控双向通信，定时向飞控请求 MSP_STATUS_EX /
 //       MSP_ANALOG / MSP_RC，解析出【解锁状态 / 飞行模式 / 电池电压 / 油门】，
-//       再调用 WLED 预设自动切换灯光效果。
+//       再调用 WLED 预设自动切换灯光效果；并可让飞控状态直接控制灯带整体
+//       开关（解锁亮/锁定灭等，见 switchMode）。
 //
 // 目标：WLED 16（v16.0.1），ESP32 / ESP32-C3 / ESP32-S3（本工程针对 C3）
 // 说明：v16 自注册式 usermod（REGISTER_USERMOD + library.json），
@@ -41,6 +42,7 @@ class BfMspUsermod : public Usermod {
     void sendRequest(uint8_t cmd);
     void onMspFrame(uint8_t cmd, uint8_t* payload, uint8_t len);
     void applyState();
+    void applySwitch();
     void applyPreset(uint16_t presetId);
     void checkButton();
     void advanceManualPreset();
@@ -64,6 +66,11 @@ class BfMspUsermod : public Usermod {
     uint16_t presetCycleMin = 1;      // 手动循环预设的 ID 范围（含端点）
     uint16_t presetCycleMax = 5;
     uint16_t debounceMs     = 40;     // 按键去抖时间（ms）
+
+    // -------------------- 灯带开关（受 BF 控制，独立于预设切换） -------------
+    uint8_t  switchMode = 1;    // 0=禁用 1=解锁亮/锁定灭 2=锁定亮/解锁灭 3=链路丢失熄灯
+    bool     switchOn   = true; // 当前开关输出（true=亮）
+    uint8_t  savedBri   = 0;    // 关灯前记住的亮度，恢复用
 
     // ---------------------------- 运行时状态 -------------------------------
     uint8_t  rxBuf[128];          // MSP 帧接收缓冲（最大 payload 122 字节）

@@ -272,7 +272,9 @@ void BfMspUsermod::applyPreset(uint16_t presetId) {
   if (presetId == 0) return; // 0 = 保持当前效果不动
   // WLED 16：presets 对象已移除，applyPreset 改为全局函数（wled.h 声明）；
   // CALL_MODE_FX_ONLY 已删除，改用 CALL_MODE_NO_NOTIFY（改状态但不发 UDP 通知）。
-  applyPreset(presetId, CALL_MODE_NO_NOTIFY);
+  // 注意：类里有同名成员函数 applyPreset(uint16_t)，会遮蔽全局函数，
+  //       必须用 :: 显式指定全局作用域，否则报"no matching function"。
+  ::applyPreset(presetId, CALL_MODE_NO_NOTIFY);
 }
 
 // ---------------------------------------------------------------------------
