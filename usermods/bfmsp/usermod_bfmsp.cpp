@@ -64,6 +64,11 @@ void BfMspUsermod::setup() {
 #endif
   pinMode(bootPin, INPUT_PULLUP);
   BFDBG("BfMsp: BOOT button on GPIO%u\n", bootPin);
+
+  // 灯带开关模式（0=禁用 1=解锁亮 2=反相 3=链路丢失熄灯；也可运行时在 JSON 改）
+#ifdef BF_MSP_SWITCH_MODE
+  switchMode = BF_MSP_SWITCH_MODE;
+#endif
 }
 
 // ---------------------------------------------------------------------------
@@ -211,9 +216,36 @@ void BfMspUsermod::onMspFrame(uint8_t cmd, uint8_t* p, uint8_t len) {
 }
 
 // ---------------------------------------------------------------------------
+// 灯带开关（受 BF 控制）：独立于预设切换，只控制整灯亮/灭。
+// 直接改全局 bri 即可——WLED 主循环每帧会把 bri 同步到灯带总线。
+// ---------------------------------------------------------------------------
+void BfMspUsermod::applySwitch() {
+  bool wantOn = true;
+  switch (switchMode) {
+    case 1: wantOn = armed; break;        // 解锁亮 / 锁定灭
+    case 2: wantOn = !armed; break;       // 锁定亮 / 解锁灭（反相）
+    case 3: wantOn = fcConnected; break;  // 链路丢失熄灯
+    default: return;                      // 0 = 禁用
+  }
+  if (wantOn == switchOn) return;         // 开关状态未翻转
+  switchOn = wantOn;
+
+  if (wantOn) {
+    // 恢复亮度：优先用关灯前记忆的亮度，否则用 WLED 默认亮度 briS(128)；
+    // 若用户已手动调亮（bri>0），保留手动值。
+    if (bri == 0) bri = savedBri ? savedBri : briS;
+  } else {
+    savedBri = bri;
+    bri = 0;
+  }
+  BFDBG("BfMsp: switch %s (bri=%u)\n", wantOn ? "ON" : "OFF", bri);
+}
+
+// ---------------------------------------------------------------------------
 // 状态机：低电压 > 已解锁 > 角度模式 > 未解锁 > 链路丢失，变化时才切换预设
 // ---------------------------------------------------------------------------
 void BfMspUsermod::applyState() {
+  applySwitch();  // 每次循环都评估开关（内部有去重，开销极小）
   uint8_t st;
   if (!fcConnected)                            st = ST_LINKLOST;
   else if (vbat && vbat < lowBattVolt)         st = ST_LOWBATT;
@@ -238,8 +270,9 @@ void BfMspUsermod::applyState() {
 
 void BfMspUsermod::applyPreset(uint16_t presetId) {
   if (presetId == 0) return; // 0 = 保持当前效果不动
-  // WLED >= 0.14：presets.applyPreset(id, CALL_MODE_FX_ONLY)
-  presets.applyPreset(presetId, CALL_MODE_FX_ONLY);
+  // WLED 16：presets 对象已移除，applyPreset 改为全局函数（wled.h 声明）；
+  // CALL_MODE_FX_ONLY 已删除，改用 CALL_MODE_NO_NOTIFY（改状态但不发 UDP 通知）。
+  applyPreset(presetId, CALL_MODE_NO_NOTIFY);
 }
 
 // ---------------------------------------------------------------------------
@@ -259,6 +292,8 @@ void BfMspUsermod::addToJsonState(JsonObject& root) {
   top["presetCycleMin"] = presetCycleMin;
   top["presetCycleMax"] = presetCycleMax;
   top["manualPreset"]   = manualPreset;
+  top["switchMode"]     = switchMode;
+  top["switchOn"]       = switchOn;
   top["fcConnected"]    = fcConnected;
   top["armed"]          = armed;
   top["vbat"]           = vbat; // 0.1V 单位
@@ -277,6 +312,8 @@ void BfMspUsermod::readFromJsonState(JsonObject& root) {
   bootEnabled    = top["bootEnabled"]    | bootEnabled;
   presetCycleMin = top["presetCycleMin"] | presetCycleMin;
   presetCycleMax = top["presetCycleMax"] | presetCycleMax;
+  switchMode = top["switchMode"] | switchMode;
+  if (switchMode > 3) switchMode = 0; // 越界回退到禁用
 }
 
 // ---------------------------------------------------------------------------
