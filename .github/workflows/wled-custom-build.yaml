@@ -1,0 +1,49 @@
+# =============================================================================
+# WLED 在线编译 Workflow（GitHub Actions）
+# 放置位置：WLED 仓库根目录下的 .github/workflows/wled-custom-build.yaml
+# 用法：推送到仓库或手动在 Actions 页点 Run workflow
+# 产出：wled-esp32c3-bfmsp 构件，内含编译好的 .bin 固件
+# =============================================================================
+name: WLED Build (esp32c3 + bfmsp)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Build WLED web UI
+        run: npm run build
+
+      - name: Install PlatformIO
+        run: pip install -U platformio
+
+      - name: Build firmware (esp32c3dev_bfmsp)
+        run: pio run -e esp32c3dev_bfmsp
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wled-esp32c3-bfmsp
+          path: build_output/firmware/
+          if-no-files-found: error
